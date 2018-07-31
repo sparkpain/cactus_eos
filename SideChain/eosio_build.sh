@@ -107,12 +107,12 @@
 		done
 	fi
 
-	if [ ! -d .git ]; then
-		printf "\\n\\tThis build script only works with sources cloned from git\\n"
-		printf "\\tPlease clone a new eos directory with 'git clone https://github.com/EOSIO/eos --recursive'\\n"
-		printf "\\tSee the wiki for instructions: https://github.com/EOSIO/eos/wiki\\n"
-		exit 1
-	fi
+	# if [ ! -d .git ]; then
+	# 	printf "\\n\\tThis build script only works with sources cloned from git\\n"
+	# 	printf "\\tPlease clone a new eos directory with 'git clone https://github.com/EOSIO/eos --recursive'\\n"
+	# 	printf "\\tSee the wiki for instructions: https://github.com/EOSIO/eos/wiki\\n"
+	# 	exit 1
+	# fi
 
 	STALE_SUBMODS=$(( $(git submodule status | grep -c "^[+\-]") ))
 	if [ $STALE_SUBMODS -gt 0 ]; then
