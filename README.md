@@ -7,4 +7,6 @@ SSH生成命令：ssh-keygen -t rsa -C your_email@example.com
 
 
 注意：your_email@example.com 是你github上的注册邮箱
+shengfeng
+
 
