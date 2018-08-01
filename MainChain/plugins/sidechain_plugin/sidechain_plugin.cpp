@@ -9,52 +9,18 @@
 
 #include <eosio/chain/action.hpp>
 
-namespace eosio {
-	using namespace chain;
-//	using boost::signals2::
-
-	static appbase::abstract_plugin &_sidechain_plugin = app().register_plugin<sidechain_plugin>();
-
-
-	struct transaction_summary_object
-			: public chainbase::object<transaction_symmary_object_type, transaction_summary_object> {
-		OBJECT_CTOR(transaction_summary_object)
-
-
-		id_type id;
-		uint32_t block_num;
-		transaction_id_type trx_id;
-
+namespace eosio { namespace chain {
+	struct cactus_transfer {
 		account_name from;
 		account_name to;
 		asset quantity;
-	};
 
-	struct by_block;
-	struct by_trx;
-	using transaction_summary_multi_index = chainbase::shared_multi_index_container<
-			transaction_summary_object,
-			indexed_by<
-					ordered_unique<tag<by_id>, member<transaction_summary_object, transaction_summary_object::id_type, &transaction_summary_object::id>>,
-					ordered_unique<tag<by_trx>, member<transaction_summary_object, transaction_id_type, &transaction_summary_object::trx_id>>,
-					ordered_non_unique<tag<by_block>, member<transaction_summary_object, uint32_t, &transaction_summary_object::block_num>>
-			>
-	>;
+		cactus_transfer() = default;
 
-}
+		cactus_transfer(const account_name &from, const account_name &to, const asset &quantity) : from(from),
+																								   to(to),
+																								   quantity(quantity) {}
 
-CHAINBASE_SET_INDEX_TYPE(eosio::transaction_summary_object, eosio::transaction_summary_multi_index)
-
-namespace eosio { namespace chain {
-	struct cactus {
-		account_name  from;
-		account_name  to;
-		asset         quantity;
-
-		cactus() = default;
-
-		cactus(const account_name &from, const account_name &to, const asset &quantity) : from(from),to(to),
-																						  quantity(quantity){}
 		static name get_account() {
 			return N(cactus);
 		}
@@ -63,29 +29,66 @@ namespace eosio { namespace chain {
 			return N(transfer);
 		}
 	};
-}} /// namespace eosio::chain
+}}
+FC_REFLECT( eosio::chain::cactus_transfer, (from)(to)(quantity))
 
-FC_REFLECT( eosio::chain::cactus, (from)(to)(quantity))
+#ifndef DEFINE_INDEX
+#define DEFINE_INDEX(object_type, object_name, index_name) \
+	struct object_name \
+			: public chainbase::object<object_type, object_name> { \
+			OBJECT_CTOR(object_name) \
+			id_type id; \
+			uint32_t block_num; \
+			transaction_id_type trx_id; \
+			action_data data; \
+	}; \
+	\
+	struct by_block; \
+	struct by_trx; \
+	using index_name = chainbase::shared_multi_index_container< \
+		object_name, \
+		indexed_by< \
+				ordered_unique<tag<by_id>, member<object_name, object_name::id_type, &object_name::id>>, \
+				ordered_unique<tag<by_trx>, member<object_name, transaction_id_type, &object_name::trx_id>>, \
+				ordered_non_unique<tag<by_block>, member<object_name, uint32_t, &object_name::block_num>> \
+		> \
+	>;
+#endif
+
+namespace eosio {
+
+	using namespace chain;
+//	using boost::signals2::
+	using action_data = vector<char>;
+
+	static appbase::abstract_plugin &_sidechain_plugin = app().register_plugin<sidechain_plugin>();
+
+	DEFINE_INDEX(transaction_symmary_object_type, transaction_summary_object, transaction_summary_multi_index)
+	DEFINE_INDEX(transaction_executed_object_type, transaction_executed_object, transaction_executed_multi_index)
+}
+
+CHAINBASE_SET_INDEX_TYPE(eosio::transaction_summary_object, eosio::transaction_summary_multi_index)
+CHAINBASE_SET_INDEX_TYPE(eosio::transaction_executed_object, eosio::transaction_executed_multi_index)
 
 namespace eosio {
 
 	class sidechain_plugin_impl {
 		public:
 			chain_plugin*       chain_plug = nullptr;
+			optional<boost::signals2::scoped_connection> accepted_transaction_connection;
+			optional<boost::signals2::scoped_connection> irreversible_block_connection;
+
 			void accepted_cactus_transfer(const transaction_metadata_ptr& trx) {
 				auto& chain = chain_plug->chain();
 				auto& db = chain.db();
 				auto block_num = chain.pending_block_state()->block_num;
 				for (const auto action : trx->trx.actions) {
 					wlog("超: ${act}, ${name}", ("act", action.account)("name", action.name));
-					if(action.account == chain::cactus::get_account() && action.name == chain::cactus::get_name()) {
-						auto data = action.data_as<chain::cactus>();
-						const auto transaction_summary = db.create<transaction_summary_object>([&](auto& a) {
-							a.block_num = block_num;
-							a.trx_id = trx->signed_id;
-							a.from = data.from;
-							a.to = data.to;
-							a.quantity = data.quantity;
+					if(action.account == chain::cactus_transfer::get_account() && action.name == chain::cactus_transfer::get_name()) {
+						const auto transaction_summary = db.create<transaction_summary_object>([&](auto& tso) {
+							tso.block_num = block_num;
+							tso.trx_id = trx->signed_id;
+							tso.data = action.data;
 						});
 						break;
 					}
@@ -96,24 +99,24 @@ namespace eosio {
 				auto& chain = chain_plug->chain();
 				auto& db = chain.db();
 
-
-	wlog("测试===================");
-				while(1){
-					;
-				}
 				const auto& tsmi = db.get_index<transaction_summary_multi_index, by_block>();
 				vector<transaction_summary_object> irreversible_transactions;
 				auto itr = tsmi.begin();
 				while( itr != tsmi.end()) {
 					if (itr->block_num <= irb->block_num) {
+						auto data = fc::raw::unpack<cactus_transfer>(itr->data);
 						ilog("tx-id: ${num}==${id},data【${from} -> ${to} ${quantity}】",
-							 ("num",itr->block_num)("id",itr->trx_id)("from",itr->from)
-									 ("to", itr->to)("quantity", itr->quantity));
+							 ("num",itr->block_num)("id",itr->trx_id)("from",data.from)
+									 ("to", data.to)("quantity", data.quantity));
+						db.create<transaction_executed_object>([&](auto& teo) {
+							teo.block_num = itr->block_num;
+							teo.trx_id = itr->trx_id;
+							teo.data = itr->data;
+						});
 						db.remove(*itr);
 					}
 					++ itr;
 				}
-	wlog("结束测试===================");
 			}
 	};
 
@@ -135,13 +138,14 @@ namespace eosio {
 			auto& chain = my->chain_plug->chain();
 
 			chain.db().add_index<transaction_summary_multi_index>();
+			chain.db().add_index<transaction_executed_multi_index>();
 
-			chain.accepted_transaction.connect( [&](const transaction_metadata_ptr& trx) {
+			my->accepted_transaction_connection.emplace(chain.accepted_transaction.connect( [&](const transaction_metadata_ptr& trx) {
 				my->accepted_cactus_transfer(trx);
-			});
-			chain.irreversible_block.connect( [&](const block_state_ptr& irb) {
+			}));
+			my->irreversible_block_connection.emplace(chain.irreversible_block.connect( [&](const block_state_ptr& irb) {
 				my->send_cactus_transfer(irb);
-			});
+			}));
 
 		} FC_LOG_AND_RETHROW()
 	}
@@ -150,6 +154,8 @@ namespace eosio {
 	}
 
 	void sidechain_plugin::plugin_shutdown() {
+		my->accepted_transaction_connection.reset();
+		my->irreversible_block_connection.reset();
 	}
 
 
