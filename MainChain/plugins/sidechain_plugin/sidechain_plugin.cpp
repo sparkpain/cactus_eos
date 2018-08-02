@@ -43,14 +43,14 @@ FC_REFLECT( eosio::chain::cactus_transfer, (from)(to)(quantity))
 			action_data data; \
 	}; \
 	\
-	struct by_block; \
-	struct by_trx; \
+	struct by_block_num; \
+	struct by_trx_id; \
 	using index_name = chainbase::shared_multi_index_container< \
 		object_name, \
 		indexed_by< \
 				ordered_unique<tag<by_id>, member<object_name, object_name::id_type, &object_name::id>>, \
-				ordered_unique<tag<by_trx>, member<object_name, transaction_id_type, &object_name::trx_id>>, \
-				ordered_non_unique<tag<by_block>, member<object_name, uint32_t, &object_name::block_num>> \
+				ordered_unique<tag<by_trx_id>, member<object_name, transaction_id_type, &object_name::trx_id>>, \
+				ordered_non_unique<tag<by_block_num>, member<object_name, uint32_t, &object_name::block_num>> \
 		> \
 	>;
 #endif
@@ -63,11 +63,11 @@ namespace eosio {
 
 	static appbase::abstract_plugin &_sidechain_plugin = app().register_plugin<sidechain_plugin>();
 
-	DEFINE_INDEX(transaction_symmary_object_type, transaction_summary_object, transaction_summary_multi_index)
+	DEFINE_INDEX(transaction_reversible_object_type, transaction_reversible_object, transaction_reversible_multi_index)
 	DEFINE_INDEX(transaction_executed_object_type, transaction_executed_object, transaction_executed_multi_index)
 }
 
-CHAINBASE_SET_INDEX_TYPE(eosio::transaction_summary_object, eosio::transaction_summary_multi_index)
+CHAINBASE_SET_INDEX_TYPE(eosio::transaction_reversible_object, eosio::transaction_reversible_multi_index)
 CHAINBASE_SET_INDEX_TYPE(eosio::transaction_executed_object, eosio::transaction_executed_multi_index)
 
 namespace eosio {
@@ -84,10 +84,15 @@ namespace eosio {
 				auto block_num = chain.pending_block_state()->block_num;
 				for (const auto action : trx->trx.actions) {
 					wlog("超: ${act}, ${name}", ("act", action.account)("name", action.name));
-					if(action.account == chain::cactus_transfer::get_account() && action.name == chain::cactus_transfer::get_name()) {
-						const auto transaction_summary = db.create<transaction_summary_object>([&](auto& tso) {
+					if (action.account == chain::cactus_transfer::get_account()
+						&& action.name == chain::cactus_transfer::get_name()) {
+						const auto* existed = db.find<transaction_reversible_object, by_trx_id>(trx->id);
+							if (existed != nullptr) {
+								return;
+							}
+						const auto transaction_reversible = db.create<transaction_reversible_object>([&](auto& tso) {
 							tso.block_num = block_num;
-							tso.trx_id = trx->signed_id;
+							tso.trx_id = trx->id;
 							tso.data = action.data;
 						});
 						break;
@@ -99,8 +104,8 @@ namespace eosio {
 				auto& chain = chain_plug->chain();
 				auto& db = chain.db();
 
-				const auto& tsmi = db.get_index<transaction_summary_multi_index, by_block>();
-				vector<transaction_summary_object> irreversible_transactions;
+				const auto& tsmi = db.get_index<transaction_reversible_multi_index, by_block_num>();
+				vector<transaction_reversible_object> irreversible_transactions;
 				auto itr = tsmi.begin();
 				while( itr != tsmi.end()) {
 					if (itr->block_num <= irb->block_num) {
@@ -137,7 +142,7 @@ namespace eosio {
 			my->chain_plug = app().find_plugin<chain_plugin>();
 			auto& chain = my->chain_plug->chain();
 
-			chain.db().add_index<transaction_summary_multi_index>();
+			chain.db().add_index<transaction_reversible_multi_index>();
 			chain.db().add_index<transaction_executed_multi_index>();
 
 			my->accepted_transaction_connection.emplace(chain.accepted_transaction.connect( [&](const transaction_metadata_ptr& trx) {

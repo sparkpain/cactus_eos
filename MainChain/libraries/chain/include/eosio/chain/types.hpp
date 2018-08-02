@@ -151,7 +151,7 @@ namespace eosio { namespace chain {
       action_history_object_type,
       reversible_block_object_type,
       OBJECT_TYPE_COUNT, ///< Sentry value which contains the number of different object types
-      transaction_symmary_object_type,
+      transaction_reversible_object_type,
 	  transaction_executed_object_type
    };
 
