@@ -510,7 +510,7 @@ void chain_plugin::plugin_initialize(const variables_map& options) {
 
       if ( options.count("read-mode") ) {
          my->chain_config->read_mode = options.at("read-mode").as<db_read_mode>();
-         EOS_ASSERT( my->chain_config->read_mode != db_read_mode::IRREVERSIBLE, plugin_config_exception, "irreversible mode not currently supported." );
+//         EOS_ASSERT( my->chain_config->read_mode != db_read_mode::IRREVERSIBLE, plugin_config_exception, "irreversible mode not currently supported." );
       }
 
       my->chain.emplace( *my->chain_config );
