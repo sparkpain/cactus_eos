@@ -20,37 +20,38 @@ class multisign : public eosio::contract {
 
       multisign(account_name self)
       :eosio::contract(self)
-      ,multi_trxs(_self, _self)
+      ,msigs(_self, _self)
       {}
 
 
       /// @abi action 
-      void hi( account_name user, checksum256& trx_id, account_name to, asset quantity) {
+      void propose( account_name user, checksum256& trx_id, account_name to, asset quantity) {
           eosio_assert( account_set.count(user) > 0, "user is not witness" );
           require_auth(user);
 
-          auto idx = multi_trxs.template get_index<N(trx_id)>();
-          auto curr_multi_trx = idx.find( multi_trx::get_trx_id(trx_id)); 
+          auto idx = msigs.template get_index<N(trx_id)>();
+          auto curr_msig = idx.find( msig::get_trx_id(trx_id)); 
 
-          if (curr_multi_trx == idx.end()) {
-              multi_trxs.emplace( _self, [&]( auto& a ){
-                 a.id = multi_trxs.available_primary_key();
+          if (curr_msig == idx.end()) {
+              msigs.emplace( _self, [&]( auto& a ){
+                 a.id = msigs.available_primary_key();
                  a.trx_id = trx_id;
                  a.to = to;
                  a.quantity = quantity;
                  a.confirmed.push_back(user);
              });
           } else {
-              eosio_assert( curr_multi_trx->to == to, "to account is not correct" );
-              eosio_assert( curr_multi_trx->quantity == quantity, "quantity is not correct" );
+              eosio_assert( curr_msig->to == to, "to account is not correct" );
+              eosio_assert( curr_msig->quantity == quantity, "quantity is not correct" );
+              eosio_assert( curr_msig->confirmed.size() < required_confs, "transaction already excused" );
+              eosio_assert( std::find(curr_msig->confirmed.begin(), curr_msig->confirmed.end(), user)
+                            == curr_msig->confirmed.end(), "transaction already confirmed by this account" );
 
-              idx.modify(curr_multi_trx, 0, [&]( auto& a ) {
-                    eosio_assert( std::find(a.confirmed.begin(),a.confirmed.end(),user) == a.confirmed.end(), 
-                            "this account already confirmed" );     
+              idx.modify(curr_msig, 0, [&]( auto& a ) {
                     a.confirmed.push_back(user);
               });
 
-              if (curr_multi_trx->confirmed.size() == required_confs) {
+              if (curr_msig->confirmed.size() == required_confs) {
                   action(
                       permission_level{ _self, N(active) },
                       N(eosio.token), N(transfer),
@@ -61,8 +62,8 @@ class multisign : public eosio::contract {
       }
 
   private:
-    //@abi table multi_trx i64
-    struct multi_trx {
+    //@abi table msig i64
+    struct msig {
         uint64_t              id;
         checksum256           trx_id;
         account_name          to;
@@ -78,18 +79,18 @@ class multisign : public eosio::contract {
             return key256::make_from_word_sequence<uint64_t>(p64[0], p64[1], p64[2], p64[3]);
          }
 
-        EOSLIB_SERIALIZE( multi_trx, (id)(trx_id)(to)(quantity)(confirmed) )
+        EOSLIB_SERIALIZE( msig, (id)(trx_id)(to)(quantity)(confirmed) )
     };
 
-    typedef eosio::multi_index< N(multi_trx), multi_trx, 
-      indexed_by< N(trx_id), const_mem_fun<multi_trx, key256, &multi_trx::by_trx_id> >
-    > multi_trx_index;
+    typedef eosio::multi_index< N(msig), msig, 
+      indexed_by< N(trx_id), const_mem_fun<msig, key256, &msig::by_trx_id> >
+    > msig_index;
 
-    multi_trx_index multi_trxs;
+    msig_index msigs;
 
     set<account_name> account_set = { N(hello), N(eosio.token), N(eosio),
                                       N(sf), N(haonan), N(zhd), N(longge) };
     uint32_t required_confs = (uint32_t)(account_set.size() * 2 / 3) + 1;
 };
 
-EOSIO_ABI( multisign, (hi) )
+EOSIO_ABI( multisign, (propose) )
