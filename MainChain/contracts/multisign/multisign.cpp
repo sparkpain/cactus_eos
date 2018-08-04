@@ -25,7 +25,7 @@ class multisign : public eosio::contract {
 
 
       /// @abi action 
-      void propose( account_name user, checksum256& trx_id, account_name to, asset quantity) {
+      void msigtrans( account_name user, checksum256& trx_id, account_name to, asset quantity) {
           eosio_assert( account_set.count(user) > 0, "user is not witness" );
           require_auth(user);
 
@@ -74,10 +74,10 @@ class multisign : public eosio::contract {
 
         key256 by_trx_id()const { return get_trx_id(trx_id); }
 
-         static key256 get_trx_id(const checksum256& trx_id) {
+        static key256 get_trx_id(const checksum256& trx_id) {
             const uint64_t *p64 = reinterpret_cast<const uint64_t *>(&trx_id);
             return key256::make_from_word_sequence<uint64_t>(p64[0], p64[1], p64[2], p64[3]);
-         }
+        }
 
         EOSLIB_SERIALIZE( msig, (id)(trx_id)(to)(quantity)(confirmed) )
     };
@@ -90,7 +90,8 @@ class multisign : public eosio::contract {
 
     set<account_name> account_set = { N(hello), N(eosio.token), N(eosio),
                                       N(sf), N(haonan), N(zhd), N(longge) };
+
     uint32_t required_confs = (uint32_t)(account_set.size() * 2 / 3) + 1;
 };
 
-EOSIO_ABI( multisign, (propose) )
+EOSIO_ABI( multisign, (msigtrans) )

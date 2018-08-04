@@ -76,6 +76,7 @@ namespace eosio {
 		public:
 			chain_plugin*       chain_plug = nullptr;
 			fc::microseconds 	_max_irreversible_transaction_age_us;
+			bool				_send_propose_enabled = false;
 
 			optional<boost::signals2::scoped_connection> accepted_transaction_connection;
 			optional<boost::signals2::scoped_connection> irreversible_block_connection;
@@ -88,7 +89,9 @@ namespace eosio {
 				auto now = fc::time_point::now();
 				auto block_age = (chain.pending_block_time() > now) ? fc::microseconds(0) : (now - chain.pending_block_time());
 
-				if ( _max_irreversible_transaction_age_us.count() >= 0 && block_age >= _max_irreversible_transaction_age_us ) {
+				if (!_send_propose_enabled) {
+					return
+				} else if ( _max_irreversible_transaction_age_us.count() >= 0 && block_age >= _max_irreversible_transaction_age_us ) {
 					return;
 				}
 
@@ -105,6 +108,7 @@ namespace eosio {
 //							tso.trx_id = trx->id;
 //							tso.data = action.data;
 //						});
+						// send a propose
 
 						break;
 					}
@@ -145,7 +149,8 @@ namespace eosio {
 
 	void sidechain_plugin::set_program_options(options_description& cli, options_description& cfg) {
 		cfg.add_options()
-				("max-irreversible-transaction-age", bpo::value<int32_t>()->default_value( -1 ))
+				("max-irreversible-transaction-age", bpo::value<int32_t>()->default_value( -1 )),
+				("enable-send-propose", bpo::bool_switch()->notifier([this](bool e){my->_send_propose_enabled = e;}), "Enable push propose.")
 			;
 	}
 
