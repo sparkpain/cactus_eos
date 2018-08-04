@@ -3,111 +3,79 @@
  *  @copyright defined in eos/LICENSE.txt
  */
 #pragma once
-#include <iostream>
-#include <istream>
-#include <ostream>
-#include <string>
 
-namespace eosio {
- namespace client {
-  namespace http {
-using namespace std;
-      namespace detail {
-          class http_context_impl;
+namespace eosio { namespace client { namespace http {
 
-          struct http_context_deleter {
-              void operator()(http_context_impl*) const;
-          };
+   namespace detail {
+      class http_context_impl;
+
+      struct http_context_deleter {
+         void operator()(http_context_impl*) const;
+      };
+   }
+
+   using http_context = std::unique_ptr<detail::http_context_impl, detail::http_context_deleter>;
+
+   http_context create_http_context();
+
+   struct parsed_url {
+      string scheme;
+      string server;
+      string port;
+      string path;
+
+      static string normalize_path(const string& path);
+
+      parsed_url operator+ (string sub_path) {
+         return {scheme, server, port, path + sub_path};
       }
-      using http_context = std::unique_ptr<detail::http_context_impl, detail::http_context_deleter>;
+   };
 
+   parsed_url parse_url( const string& server_url );
 
+   struct resolved_url : parsed_url {
+      resolved_url( const parsed_url& url, vector<string>&& resolved_addresses, uint16_t resolved_port, bool is_loopback)
+      :parsed_url(url)
+      ,resolved_addresses(std::move(resolved_addresses))
+      ,resolved_port(resolved_port)
+      ,is_loopback(is_loopback)
+      {
+      }
 
-      struct parsed_url {
-          string scheme;
-          string server;
-          string port;
-          string path;
+      vector<string> resolved_addresses;
+      uint16_t resolved_port;
+      bool is_loopback;
+   };
 
-          static string normalize_path(const string& path);
-
-          parsed_url operator+ (string sub_path) {
-              return {scheme, server, port, path + sub_path};
-          }
-      };
-
-
-      struct resolved_url : parsed_url {
-          resolved_url( const parsed_url& url, vector<string>&& resolved_addresses, uint16_t resolved_port, bool is_loopback)
-                  :parsed_url(url)
-                  ,resolved_addresses(std::move(resolved_addresses))
-                  ,resolved_port(resolved_port)
-                  ,is_loopback(is_loopback)
-          {
-          }
-
-          vector<string> resolved_addresses;
-          uint16_t resolved_port;
-          bool is_loopback;
-      };
-         resolved_url resolve_url( const http_context& context,
+   resolved_url resolve_url( const http_context& context,
                              const parsed_url& url );
 
-struct connection_param {
-const http_context& context;
-resolved_url url;
-bool verify_cert;
-// std::vector<string>& headers;
+   struct connection_param {
+      const http_context& context;
+      resolved_url url;
+      bool verify_cert;
+      // std::vector<string>& headers;
 
-// connection_param( const http_context& context,
-//                   const resolved_url& url,
-//                   bool verify,
-//                   std::vector<string>& h) : context(context),url(url), headers(h) {
-//     verify_cert = verify;
-// }
-connection_param( const http_context& context,
-                  const resolved_url& url,
-                  bool verify) : context(context),url(url) {
-    verify_cert = verify;
-}
-connection_param( const http_context& context,
-                const parsed_url& url,
-                bool verify) : context(context),url(resolve_url(context, url)) {
-  verify_cert = verify;
-}
-};
+      connection_param( const http_context& context,
+                        const resolved_url& url,
+                        bool verify) : context(context),url(url) {
+         verify_cert = verify;
+      }
 
+      connection_param( const http_context& context,
+                        const parsed_url& url,
+                        bool verify) : context(context),url(resolve_url(context, url)) {
+         verify_cert = verify;
+      }
+   };
 
-class client_manager {
-        public:
-        client_manager()= default;
-        ~client_manager() = default ;
-        void set_url(const string& server_url) {url = server_url;}
+   fc::variant do_http_call(
+                             const connection_param& cp,
+                             const fc::variant& postdata = fc::variant(),
+                             bool print_request = false,
+                             bool print_response = false);
 
-        http_context create_http_context();
-        parsed_url parse_url( const string& server_url );
-
-
-        fc::variant do_http_call(
-        const connection_param& cp,
-        const fc::variant& postdata = fc::variant(),
-        bool print_request = false,
-        bool print_response = false);
-
-      // connection_param( const http_context& context,
-      //          const resolved_url& url,
-      //          bool verify) : context(context),url(url),verify_cert(verify){}
-      // connection_param( const http_context& context,
-      //        const parsed_url& url,
-      //        bool verify) : context(context),url(client_manager::resolve_url(context, url)),verify_cert(verify) {}
-
-private:
-    string url = "192.168.31.91:8888";
-};
-
-
-
-  const string chain_func_base = "/v1/chain";
+   const string chain_func_base = "/v1/chain";
    const string get_info_func = chain_func_base + "/get_info";
    const string push_txn_func = chain_func_base + "/push_transaction";
    const string push_txns_func = chain_func_base + "/push_transactions";
@@ -157,5 +125,6 @@ private:
    const string wallet_sign_trx = wallet_func_base + "/sign_transaction";
    const string keosd_stop = "/v1/keosd/stop";
 
-   // FC_DECLARE_EXCEPTION( connection_exception, 1100000, "Connection Exception" );
+   FC_DECLARE_EXCEPTION( connection_exception, 1100000, "Connection Exception" );
  }}}
+
