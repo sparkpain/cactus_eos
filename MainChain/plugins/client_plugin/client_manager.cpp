@@ -25,9 +25,7 @@
 
 using boost::asio::ip::tcp;
 using namespace eosio::chain;
-namespace eosio {
- namespace client {
-   namespace http {
+namespace eosio { namespace client { namespace http {
 
    namespace detail {
       class http_context_impl {
@@ -40,10 +38,9 @@ namespace eosio {
       }
    }
 
-   http_context client_manager::create_http_context() {
+   http_context create_http_context() {
       return http_context(new detail::http_context_impl, detail::http_context_deleter());
    }
-
 
    void do_connect(tcp::socket& sock, const resolved_url& url) {
       // Get a list of endpoints corresponding to the server name.
@@ -104,10 +101,7 @@ namespace eosio {
       return re.str();
    }
 
-
-
-
-   parsed_url client_manager::parse_url( const string& server_url ) {
+   parsed_url parse_url( const string& server_url ) {
       parsed_url res;
 
       //via rfc3986 and modified a bit to suck out the port number
@@ -141,7 +135,7 @@ namespace eosio {
       // non error results are guaranteed to return a non-empty range
       vector<string> resolved_addresses;
       resolved_addresses.reserve(result.size());
-      fc::optional<uint16_t> resolved_port;
+      optional<uint16_t> resolved_port;
       bool is_loopback = true;
 
       for(const auto& r : result) {
@@ -173,7 +167,7 @@ namespace eosio {
       }
    }
 
-   fc::variant client_manager::do_http_call( const connection_param& cp,
+   fc::variant do_http_call( const connection_param& cp,
                              const fc::variant& postdata,
                              bool print_request,
                              bool print_response ) {
@@ -194,7 +188,7 @@ namespace eosio {
    request_stream << "Connection: close\r\n";
    request_stream << "\r\n";
    // append more customized headers
-   std::vector<string>::iterator itr;
+   // std::vector<string>::iterator itr;
    // for (itr = cp.headers.begin(); itr != cp.headers.end(); itr++) {
    //    request_stream << *itr << "\r\n";
    // }
@@ -255,8 +249,7 @@ namespace eosio {
    }
    if( status_code == 200 || status_code == 201 || status_code == 202 ) {
       return response_result;
-   }
-   else if( status_code == 404 ) {
+   } else if( status_code == 404 ) {
       // Unknown endpoint
       if (url.path.compare(0, chain_func_base.size(), chain_func_base) == 0) {
          throw chain::missing_chain_api_plugin_exception(FC_LOG_MESSAGE(error, "Chain API plugin is not enabled"));
