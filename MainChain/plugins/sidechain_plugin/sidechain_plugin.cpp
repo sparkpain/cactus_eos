@@ -56,6 +56,10 @@ FC_REFLECT( eosio::chain::cactus_transfer, (from)(to)(quantity))
 	>;
 #endif
 
+#ifndef DATA_FORMAT
+#define DATA_FORMAT(user, trx_id, to, quantity) "[\""+user+"\", \""+trx_id+"\", \""+to+"\", \""+quantity+"\"]"
+#endif
+
 namespace eosio {
 
 	using namespace chain;
@@ -79,6 +83,9 @@ namespace eosio {
 			fc::microseconds 	_max_irreversible_transaction_age_us;
 			bool				_send_propose_enabled = false;
 			string 				_side_chain_address;
+			string 				_side_chain_account;
+			string 				_side_chain_constract;
+			string 				_chain_constract;
 
 
 			optional<boost::signals2::scoped_connection> accepted_transaction_connection;
@@ -112,8 +119,10 @@ namespace eosio {
 //							tso.data = action.data;
 //						});
 						// send a propose
-						vector<string> permissions = {"hello"};
-						app().find_plugin<client_plugin>()->get_client_apis().push_action(_side_chain_address, "cactus.msig", "msigtrans", "", permissions);
+						auto data = action.data_as<cactus_transfer>();
+						string datastr = DATA_FORMAT(_side_chain_account, string(trx->id), string(data.to), data.quantity.to_string());
+						vector<string> permissions = {_side_chain_account};
+						app().find_plugin<client_plugin>()->get_client_apis().push_action(_side_chain_address, _side_chain_constract, "msigtrans", datastr, permissions);
 
 						break;
 					}
@@ -154,9 +163,12 @@ namespace eosio {
 
 	void sidechain_plugin::set_program_options(options_description& cli, options_description& cfg) {
 		cfg.add_options()
-				("max-irreversible-transaction-age", bpo::value<int32_t>()->default_value( -1 )),
-				("enable-send-propose", bpo::bool_switch()->notifier([this](bool e){my->_send_propose_enabled = e;}), "Enable push propose."),
-				("side-chain-address", bpo::value<string>()->default_value("http://127.0.0.1:8900/"))
+				("max-irreversible-transaction-age", bpo::value<int32_t>()->default_value( -1 ), "irreversible age")
+				("enable-send-propose", bpo::bool_switch()->notifier([this](bool e){my->_send_propose_enabled = e;}), "Enable push propose.")
+				("side-chain-address", bpo::value<string>()->default_value("http://127.0.0.1:8899/"))
+				("side-chain-account", bpo::value<string>()->default_value("cactus"))
+				("side-chain-constract", bpo::value<string>()->default_value("cactus"))
+				("chain-constract", bpo::value<string>()->default_value("cactus"))
 			;
 	}
 
@@ -164,6 +176,9 @@ namespace eosio {
 		try {
 			my->_max_irreversible_transaction_age_us = fc::seconds(options.at("max-irreversible-transaction-age").as<int32_t>());
 			my->_side_chain_address = options.at("side-chain-address").as<string>();
+			my->_side_chain_account = options.at("side-chain-account").as<string>();
+			my->_side_chain_constract = options.at("side-chain-constract").as<string>();
+			my->_chain_constract = options.at("chain-constract").as<string>();
 
 			my->chain_plug = app().find_plugin<chain_plugin>();
 			auto& chain = my->chain_plug->chain();

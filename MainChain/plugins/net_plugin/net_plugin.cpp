@@ -2865,7 +2865,8 @@ namespace eosio {
             hello.head_id = cc.get_block_id_for_num( hello.head_num );
          }
          catch( const unknown_block_exception &ex) {
-           hello.head_num = 0;
+//TODO-待解决: read-mode为IRREVERSIBLE时的同步消息报错问题
+//           hello.head_num = 0;
          }
       }
    }

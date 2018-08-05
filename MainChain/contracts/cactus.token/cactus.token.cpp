@@ -19,7 +19,7 @@ namespace cactus {
                                    cts(_self, _self) {}
 
         //@abi action
-        void transfer(account_name from, asset quantity) {
+        void transfer(account_name from, account_name to, asset quantity) {
             //print( "Hello, ", name{from} );
             auto quant_after_fee = quantity;
 
@@ -41,6 +41,7 @@ namespace cactus {
             cts.emplace(_self, [&](auto &a) {
                 a.id = cts.available_primary_key();;
                 a.from = from;
+                a.to = to;
                 a.amount = quantity.amount;
                 a.creation_date = eosio::time_point_sec();
             });
@@ -70,12 +71,13 @@ namespace cactus {
 
             uint64_t id;
             account_name from;
+            account_name to;
             int64_t amount;
             eosio::time_point_sec creation_date;
 
             uint64_t primary_key() const { return id; }
 
-            EOSLIB_SERIALIZE(cactushi, (id)(from)(amount)(creation_date))
+            EOSLIB_SERIALIZE(cactushi, (id)(from)(to)(amount)(creation_date))
         };
 
         typedef eosio::multi_index<N(cactushi), cactushi> cts_his_index;
