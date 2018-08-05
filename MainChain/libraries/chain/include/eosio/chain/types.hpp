@@ -150,9 +150,9 @@ namespace eosio { namespace chain {
       account_history_object_type,
       action_history_object_type,
       reversible_block_object_type,
-      OBJECT_TYPE_COUNT, ///< Sentry value which contains the number of different object types
-      transaction_reversible_object_type,
-	  transaction_executed_object_type
+      OBJECT_TYPE_COUNT ///< Sentry value which contains the number of different object types
+//      transaction_reversible_object_type,
+//	  transaction_executed_object_type
    };
 
    class account_object;

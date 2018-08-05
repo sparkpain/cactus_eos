@@ -6,6 +6,7 @@
 
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain_plugin/chain_plugin.hpp>
+#include <eosio/client_plugin/client_plugin.hpp>
 
 #include <eosio/chain/action.hpp>
 
@@ -63,12 +64,12 @@ namespace eosio {
 
 	static appbase::abstract_plugin &_sidechain_plugin = app().register_plugin<sidechain_plugin>();
 
-	DEFINE_INDEX(transaction_reversible_object_type, transaction_reversible_object, transaction_reversible_multi_index)
-	DEFINE_INDEX(transaction_executed_object_type, transaction_executed_object, transaction_executed_multi_index)
+//	DEFINE_INDEX(transaction_reversible_object_type, transaction_reversible_object, transaction_reversible_multi_index)
+//	DEFINE_INDEX(transaction_executed_object_type, transaction_executed_object, transaction_executed_multi_index)
 }
 
-CHAINBASE_SET_INDEX_TYPE(eosio::transaction_reversible_object, eosio::transaction_reversible_multi_index)
-CHAINBASE_SET_INDEX_TYPE(eosio::transaction_executed_object, eosio::transaction_executed_multi_index)
+//CHAINBASE_SET_INDEX_TYPE(eosio::transaction_reversible_object, eosio::transaction_reversible_multi_index)
+//CHAINBASE_SET_INDEX_TYPE(eosio::transaction_executed_object, eosio::transaction_executed_multi_index)
 
 namespace eosio {
 
@@ -76,6 +77,9 @@ namespace eosio {
 		public:
 			chain_plugin*       chain_plug = nullptr;
 			fc::microseconds 	_max_irreversible_transaction_age_us;
+			bool				_send_propose_enabled = false;
+			string 				_side_chain_address;
+
 
 			optional<boost::signals2::scoped_connection> accepted_transaction_connection;
 			optional<boost::signals2::scoped_connection> irreversible_block_connection;
@@ -88,7 +92,9 @@ namespace eosio {
 				auto now = fc::time_point::now();
 				auto block_age = (chain.pending_block_time() > now) ? fc::microseconds(0) : (now - chain.pending_block_time());
 
-				if ( _max_irreversible_transaction_age_us.count() >= 0 && block_age >= _max_irreversible_transaction_age_us ) {
+				if (!_send_propose_enabled) {
+					return;
+				} else if ( _max_irreversible_transaction_age_us.count() >= 0 && block_age >= _max_irreversible_transaction_age_us ) {
 					return;
 				}
 
@@ -105,6 +111,9 @@ namespace eosio {
 //							tso.trx_id = trx->id;
 //							tso.data = action.data;
 //						});
+						// send a propose
+						vector<string> permissions = {"hello"};
+						app().find_plugin<client_plugin>()->get_client_apis().push_action(_side_chain_address, "cactus.msig", "msigtrans", "", permissions);
 
 						break;
 					}
@@ -145,19 +154,22 @@ namespace eosio {
 
 	void sidechain_plugin::set_program_options(options_description& cli, options_description& cfg) {
 		cfg.add_options()
-				("max-irreversible-transaction-age", bpo::value<int32_t>()->default_value( -1 ))
+				("max-irreversible-transaction-age", bpo::value<int32_t>()->default_value( -1 )),
+				("enable-send-propose", bpo::bool_switch()->notifier([this](bool e){my->_send_propose_enabled = e;}), "Enable push propose."),
+				("side-chain-address", bpo::value<string>()->default_value("http://127.0.0.1:8900/"))
 			;
 	}
 
 	void sidechain_plugin::plugin_initialize(const variables_map& options) {
 		try {
 			my->_max_irreversible_transaction_age_us = fc::seconds(options.at("max-irreversible-transaction-age").as<int32_t>());
+			my->_side_chain_address = options.at("side-chain-address").as<string>();
 
 			my->chain_plug = app().find_plugin<chain_plugin>();
 			auto& chain = my->chain_plug->chain();
 
-			chain.db().add_index<transaction_reversible_multi_index>();
-			chain.db().add_index<transaction_executed_multi_index>();
+//			chain.db().add_index<transaction_reversible_multi_index>();
+//			chain.db().add_index<transaction_executed_multi_index>();
 
 			my->accepted_transaction_connection.emplace(chain.accepted_transaction.connect( [&](const transaction_metadata_ptr& trx) {
 				my->accepted_transaction(trx);
