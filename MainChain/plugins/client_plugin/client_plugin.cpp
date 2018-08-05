@@ -39,27 +39,34 @@ namespace eosio {
     uint8_t  tx_max_cpu_usage = 0;
     uint32_t tx_max_net_usage = 0;
 
+    template<typename T>
+    T dejsonify(const string& s) {
+       return fc::json::from_string(s).as<T>();
+    }
 
+
+chain::private_key_type client_prikey;
     client_plugin::client_plugin(){}
     client_plugin::~client_plugin(){}
-
-
 
     void client_plugin::set_program_options(options_description&, options_description& cfg) {
         cfg.add_options()
               ("client-wallet-address", bpo::value<string>()->default_value("http://127.0.0.1:8900/"),
               "The remote BP's IP and port to listen for incoming http connections; set blank to disable.")
-              ("client-chain-address", bpo::value<string>()->default_value("http://192.168.31.91:8889/"),
-              "The remote BP's IP and port to listen for incoming http connections; set blank to disable.");
+              ("client-chain-address", bpo::value<string>()->default_value("http://127.0.0.1:8888/"),
+              "The remote BP's IP and port to listen for incoming http connections; set blank to disable.")
+              ("client-private-key", bpo::value<string>()->default_value("5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3"),
+               "client plugin's private key")
+          ;
     }
 
-    void client_plugin::plugin_initialize(const variables_map& options){
 
+    void client_plugin::plugin_initialize(const variables_map& options){
         try {
             if( options.count( "client-wallet-address" ) && options.at("client-wallet-address").as<string>().length
             ()) {
                 string lipstr_wallet = options.at( "client-wallet-address" ).as<string>();
-              // client_manager_ptr->set_wallet_url(lipstr_wallet);
+
                 wallet_url.assign(lipstr_wallet);
                 ilog( "client_plugin configured wallet http to ${h}", ("h", wallet_url));
             }
@@ -67,10 +74,18 @@ namespace eosio {
             if( options.count( "client-chain-address" ) && options.at("client-chain-address").as<string>().length
             ()) {
                string lipstr_chain = options.at( "client-chain-address" ).as<string>();
-             // client_manager_ptr->set_chain_url(lipstr_chain);
+
                chain_url.assign(lipstr_chain);
                ilog( "client_plugin configured chain http to ${h}", ("h", chain_url));
             }
+
+            if( options.count("client-private-key") )
+             {
+
+                client_prikey = private_key_type(options.at( "client-private-key" ).as<string>());
+                ilog("Keosd use private key: ${priv}",("priv", client_prikey));
+             }
+
         }FC_LOG_AND_RETHROW()
 
     }
@@ -79,15 +94,15 @@ namespace eosio {
         ilog("initializing client plugin");
 
       // auto client_apis = app().get_plugin<client_plugin>().get_client_apis();
-      // // auto info = client_apis.get_info("http://127.0.0.1:8888");
-      // //   std::cout << fc::json::to_pretty_string(info) << std::endl;
+      // auto info = client_apis.get_info("http://127.0.0.1:8888");
+      //   std::cout << fc::json::to_pretty_string(info) << std::endl;
       // string chain_url = "http://127.0.0.1:8888";
-      //    // auto transaction_info = client_apis.get_transaction(chain_url,10022,"3331399d4c1d5ebe8aa67c9e429b9137417794448b5060c2112ae5624bd8c7ba");
-      //    // std::cout << fc::json::to_pretty_string(transaction_info) << std::endl;
+         // auto transaction_info = client_apis.get_transaction(chain_url,10022,"3331399d4c1d5ebe8aa67c9e429b9137417794448b5060c2112ae5624bd8c7ba");
+         // std::cout << fc::json::to_pretty_string(transaction_info) << std::endl;
 
-      //    std::vector<string> v;
-      //    v.push_back("eosio");
-      //    client_apis.push_action(chain_url,"cactus","transfer","[\"eosio\",\"cactus\",\"100.0000 SYS\", \"m\"]",v);
+         // std::vector<string> v;
+         // v.push_back("eosio");
+         // client_apis.push_action(chain_url,"cactus","transfer","[\"eosio\",\"cactus\",\"100.0000 SYS\", \"m\"]",v);
 
 
          // /cleos push action cactus transfer '["eosio","cactus","25.0000 SYS", "m"]' -p eosio
@@ -101,14 +116,12 @@ namespace eosio {
 
     }
 
-
-
     void client_plugin::plugin_shutdown(){}
 
 namespace client_apis{
 
      client_cactus::client_cactus(){
-      // context = create_http_context();
+
     }
 
     template<typename T>
@@ -119,7 +132,7 @@ namespace client_apis{
         http_context context = create_http_context();
         connection_param *cp = new connection_param(context, urlpath, false);
 
-        return do_http_call( *cp, fc::variant(v), false, false );
+        return do_http_call( *cp, fc::variant(v), true, true );
 
     }
 
@@ -201,11 +214,17 @@ namespace client_apis{
 
         trx.max_cpu_usage_ms = tx_max_net_usage;
         trx.max_net_usage_words = (tx_max_net_usage + 7)/8;
-        wlog("block info:${result}",("result",info));
-        auto required_keys = determine_required_keys(trx);
-        sign_transaction(trx, required_keys, info.chain_id);
 
+        sign_transaction_local(trx, client_prikey, info.chain_id);
         return call(chain_url, push_txn_func, packed_transaction(trx, compression));
+    }
+
+    void client_cactus::sign_transaction_local(signed_transaction& trx,  const private_key_type& private_key,
+                                               const chain_id_type& chain_id) {
+         optional<signature_type> sig = private_key.sign(trx.sig_digest(chain_id, trx.context_free_data));
+         if (sig) {
+            trx.signatures.push_back(*sig);
+         }
     }
 
     fc::variant client_cactus::json_from_file_or_string(const string& file_or_str, fc::json::parse_type ptype = fc::json::legacy_parser)
@@ -249,6 +268,10 @@ namespace client_apis{
         trx = signed_trx.as<signed_transaction>();
         wlog("signed_trx:${result}",("result",trx));
     }
+
+
+
+
 
     unsigned int proposal_expiration_hours = 24;
     void client_cactus::multisig_propose(string proposal_name, string requested_perm, string transaction_perm, string proposed_contract, string proposed_action, string proposed_transaction,const vector<string>& tx_permission){//string proposer,
@@ -323,6 +346,8 @@ namespace client_apis{
           send_actions({chain::action{accountPermissions, "eosio.msig", "propose", result.get_object()["binargs"].as<bytes>()}});
 
     }
+
+
 }
 
 }
