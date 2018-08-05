@@ -50,6 +50,9 @@ public:
    vector<chain::permission_level> get_account_permissions(const vector<string>& permissions);
    fc::variant determine_required_keys(const signed_transaction& trx);
    void sign_transaction(signed_transaction& trx, fc::variant& required_keys, const chain_id_type& chain_id);
+
+   void sign_transaction_local(signed_transaction& trx,  const private_key_type& private_key, const chain_id_type& chain_id);
+
 private:
  // http_context context;
 
