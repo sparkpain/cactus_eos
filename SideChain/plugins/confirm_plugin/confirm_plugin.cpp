@@ -7,6 +7,7 @@
 #include <eosio/chain_plugin/chain_plugin.hpp>
 #include <eosio/history_plugin/history_plugin.hpp>
 #include <eosio/chain/action.hpp>
+#include <eosio/client_plugin/client_plugin.hpp>
 
 namespace eosio {
     namespace chain {
@@ -97,6 +98,7 @@ namespace eosio {
                             tso.block_num = block_num;
                             tso.trx_id = trx->id;
                             tso.data = action.data;
+
                             //问题一  执行一次合约 进入两次 会存放两条相同的数据 转账一次 拔毛一次  我们的合约暂时不考虑拔毛
                             wlog("捕获一条转账 ${block_num}",("block_num",block_num));
 //                            wlog("进入if ${trx->id}",("trx->id",trx->id));
@@ -132,8 +134,8 @@ namespace eosio {
                         //history
                         history_apis::read_only::get_transaction_params params;
                         params.id = itr->trx_id;
-//                        optional<uint32_t>  block_num_hint(3);  //用于失败测试
-//                        params.block_num_hint = block_num_hint; //用于失败测试
+//                        optional<uint32_t>  block_num_hint(3);  //用于模拟失败测试
+//                        params.block_num_hint = block_num_hint; //用于模拟失败测试
                         params.block_num_hint = itr->block_num;
 
                         wlog("参数1 params.id= ${params.id}",("params.id",params.id));
@@ -146,23 +148,21 @@ namespace eosio {
                             db.remove(*itr);
                         }catch(exception &exce) {
 
+                            std::cout << "itr->trx_id" << itr->trx_id << std::endl;
+                            std::cout << "itr->block_num" << itr->block_num << std::endl;
                             wlog("出现异常");
+                            auto data = fc::raw::unpack<cactus_transfer>(itr->data);
+                            wlog("by sf tx-id: ${num}==${id},data【${from} -> ${to} ${quantity}】",
+                                 ("num", itr->block_num)("id", itr->trx_id)("from", data.from)
+                                         ("to", data.to)("quantity", data.quantity));
+//                            db.create<transaction_executed_object>([&](auto &teo) {
+//                                teo.block_num = itr->block_num;
+//                                teo.trx_id = itr->trx_id;
+//                                teo.data = itr->data;
+//                            });
+//                            app().get_plugin<client_plugin>().get_client_apis().push_transaction()
+                            db.remove(*itr);
                         }
-
-                        //auto result = history_apis::read_only::get_transaction(params);
-
-
-
-//                        auto data = fc::raw::unpack<cactus_transfer>(itr->data);
-//                        wlog("by sf tx-id: ${num}==${id},data【${from} -> ${to} ${quantity}】",
-//                             ("num", itr->block_num)("id", itr->trx_id)("from", data.from)
-//                                     ("to", data.to)("quantity", data.quantity));
-//                        db.create<transaction_executed_object>([&](auto &teo) {
-//                            teo.block_num = itr->block_num;
-//                            teo.trx_id = itr->trx_id;
-//                            teo.data = itr->data;
-//                        });
-//                        db.remove(*itr);
                     }
                     ++itr;
                 }
