@@ -29,30 +29,21 @@ namespace eosio {
     using namespace client::http;
     static appbase::abstract_plugin& _client_plugin = app().register_plugin<client_plugin>();
 
-    string chain_url= "http://127.0.0.1:8888/";
-    string wallet_url= "http://127.0.0.1:8900/";
+
 
     bool no_verify = false;
     auto   tx_expiration = fc::seconds(30);
-    string tx_ref_block_num_or_id;
-    bool   tx_force_unique = false;
     uint8_t  tx_max_cpu_usage = 0;
     uint32_t tx_max_net_usage = 0;
 
-    template<typename T>
-    T dejsonify(const string& s) {
-       return fc::json::from_string(s).as<T>();
-    }
+    chain::private_key_type client_prikey;
+    string chain_url= "http://127.0.0.1:8888/";
 
-
-chain::private_key_type client_prikey;
     client_plugin::client_plugin(){}
     client_plugin::~client_plugin(){}
 
     void client_plugin::set_program_options(options_description&, options_description& cfg) {
         cfg.add_options()
-              ("client-wallet-address", bpo::value<string>()->default_value("http://127.0.0.1:8900/"),
-              "The remote BP's IP and port to listen for incoming http connections; set blank to disable.")
               ("client-chain-address", bpo::value<string>()->default_value("http://127.0.0.1:8888/"),
               "The remote BP's IP and port to listen for incoming http connections; set blank to disable.")
               ("client-private-key", bpo::value<string>()->default_value("5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3"),
@@ -63,14 +54,6 @@ chain::private_key_type client_prikey;
 
     void client_plugin::plugin_initialize(const variables_map& options){
         try {
-            if( options.count( "client-wallet-address" ) && options.at("client-wallet-address").as<string>().length
-            ()) {
-                string lipstr_wallet = options.at( "client-wallet-address" ).as<string>();
-
-                wallet_url.assign(lipstr_wallet);
-                ilog( "client_plugin configured wallet http to ${h}", ("h", wallet_url));
-            }
-
             if( options.count( "client-chain-address" ) && options.at("client-chain-address").as<string>().length
             ()) {
                string lipstr_chain = options.at( "client-chain-address" ).as<string>();
@@ -81,7 +64,6 @@ chain::private_key_type client_prikey;
 
             if( options.count("client-private-key") )
              {
-
                 client_prikey = private_key_type(options.at( "client-private-key" ).as<string>());
                 ilog("Keosd use private key: ${priv}",("priv", client_prikey));
              }
@@ -104,16 +86,7 @@ chain::private_key_type client_prikey;
          // v.push_back("eosio");
          // client_apis.push_action(chain_url,"cactus","transfer","[\"eosio\",\"cactus\",\"100.0000 SYS\", \"m\"]",v);
 
-
          // /cleos push action cactus transfer '["eosio","cactus","25.0000 SYS", "m"]' -p eosio
-
-          // auto public_keys = call(wallet_url, wallet_public_keys, fc::variant());
-          //   wlog("result:${result}",("result",public_keys));
-
-          // std::vector<string> permission;
-          // permission.push_back("eosio.msig");
-          // multisig_propose("sidechain", "[{\"actor\":\"shengfeng\",\"permission\":\"active\"},{\"actor\":\"haonan\",\"permission\":\"active\"}]", "[{\"actor\":\"yuanchao\",\"permission\":\"active\"}]","eosio.token","transfer","{\"from\":\"yuanchao\",\"to\":\"haonan\",\"quantity\":\"40.0000 SYS\",\"memo\":\"test multisig\"}",permission);
-
     }
 
     void client_plugin::plugin_shutdown(){}
@@ -128,11 +101,12 @@ namespace client_apis{
     fc::variant client_cactus::call( const std::string& url,
                       const std::string& path,
                       const T& v ) {
+        static http_context context = create_http_context();
+
         auto urlpath = parse_url(url) + path;
-        http_context context = create_http_context();
         connection_param *cp = new connection_param(context, urlpath, false);
 
-        return do_http_call( *cp, fc::variant(v), true, true );
+        return do_http_call( *cp, fc::variant(v), false, false );
 
     }
 
@@ -173,50 +147,38 @@ namespace client_apis{
                     ("action", action)
                     ("args", action_args_var);
           auto result = call(url, json_to_bin_func, arg);
-          wlog("result:${result}",("result",result));
+          // wlog("result:${result}",("result",result));
           auto accountPermissions = get_account_permissions(tx_permission); //vector<string> tx_permission;
 
-          send_actions({eosio::chain::action{accountPermissions, contract_account, action, result.get_object()["binargs"].as<bytes>()}});
+          send_actions(url, {eosio::chain::action{accountPermissions, contract_account, action, result.get_object()["binargs"].as<bytes>()}});
     }
 
 
-    void client_cactus::send_actions(std::vector<chain::action>&& actions, int32_t extra_kcpu, packed_transaction::compression_type compression) {
-          auto result = push_actions( move(actions), extra_kcpu, compression);
+    void client_cactus::send_actions(const std::string& url, std::vector<chain::action>&& actions, int32_t extra_kcpu, packed_transaction::compression_type compression) {
+          auto result = push_actions( url, move(actions), extra_kcpu, compression);
           std::cout << fc::json::to_pretty_string( result ) << std::endl;
     }
 
-    fc::variant client_cactus::push_actions(std::vector<chain::action>&& actions, int32_t extra_kcpu, packed_transaction::compression_type compression) {
+    fc::variant client_cactus::push_actions(const std::string& url, std::vector<chain::action>&& actions, int32_t extra_kcpu, packed_transaction::compression_type compression) {
         signed_transaction trx;
         trx.actions = std::forward<decltype(actions)>(actions);
-        return push_transaction(trx, extra_kcpu, compression);
+        return push_transaction(url, trx, extra_kcpu, compression);
     }
 
 
 
-    fc::variant client_cactus::push_transaction( signed_transaction& trx, int32_t extra_kcpu, packed_transaction::compression_type compression) {
-        auto info = get_info(chain_url);
+    fc::variant client_cactus::push_transaction( const std::string& url, signed_transaction& trx, int32_t extra_kcpu, packed_transaction::compression_type compression) {
+        auto info = get_info(url);
         trx.expiration = info.head_block_time + tx_expiration;
 
-        // Set tapos, default to last irreversible block if it's not specified by the user
-        block_id_type ref_block_id = info.last_irreversible_block_id;
-        // try {
-        //    fc::variant ref_block;
-        //    if (!tx_ref_block_num_or_id.empty()) {
-        //       ref_block = call(get_block_func, fc::mutable_variant_object("block_num_or_id", tx_ref_block_num_or_id));
-        //       ref_block_id = ref_block["id"].as<block_id_type>();
-        //    }
-        // } EOS_RETHROW_EXCEPTIONS(invalid_ref_block_exception, "Invalid reference block num or id:  ${block_num_or_id}", ("block_num_or_id", tx_ref_block_num_or_id));
-        trx.set_reference_block(ref_block_id);
-
-        // if (tx_force_unique) {
-        //    trx.context_free_actions.emplace_back( generate_nonce_action() );
-        // }
+        // Set tapos, default to last irreversible block
+        trx.set_reference_block(info.last_irreversible_block_id);
 
         trx.max_cpu_usage_ms = tx_max_net_usage;
         trx.max_net_usage_words = (tx_max_net_usage + 7)/8;
 
         sign_transaction_local(trx, client_prikey, info.chain_id);
-        return call(chain_url, push_txn_func, packed_transaction(trx, compression));
+        return call(url, push_txn_func, packed_transaction(trx, compression));
     }
 
     void client_cactus::sign_transaction_local(signed_transaction& trx,  const private_key_type& private_key,
@@ -247,104 +209,6 @@ namespace client_apis{
         vector<chain::permission_level> accountPermissions;
         boost::range::copy(fixedPermissions, back_inserter(accountPermissions));
         return accountPermissions;
-    }
-
-    fc::variant client_cactus::determine_required_keys(const signed_transaction& trx) {
-        // TODO better error checking
-        //wdump((trx));
-        const auto& public_keys = call(wallet_url, wallet_public_keys, fc::variant());
-        auto get_arg = fc::mutable_variant_object
-               ("transaction", (transaction)trx)
-               ("available_keys", public_keys);
-
-        const auto& required_keys = call(chain_url, get_required_keys, get_arg);
-        wlog("required_keys:${result}",("result",required_keys));
-        return required_keys["required_keys"];
-    }
-
-    void client_cactus::sign_transaction(signed_transaction& trx, fc::variant& required_keys, const chain_id_type& chain_id) {
-        fc::variants sign_args = {fc::variant(trx), required_keys, fc::variant(chain_id)};
-        const auto& signed_trx = call(wallet_url, wallet_sign_trx, sign_args);
-        trx = signed_trx.as<signed_transaction>();
-        wlog("signed_trx:${result}",("result",trx));
-    }
-
-
-
-
-
-    unsigned int proposal_expiration_hours = 24;
-    void client_cactus::multisig_propose(string proposal_name, string requested_perm, string transaction_perm, string proposed_contract, string proposed_action, string proposed_transaction,const vector<string>& tx_permission){//string proposer,
-          fc::variant requested_perm_var;
-          try {
-             requested_perm_var = json_from_file_or_string(requested_perm);
-          } EOS_RETHROW_EXCEPTIONS(transaction_type_exception, "Fail to parse permissions JSON '${data}'", ("data",requested_perm))
-          fc::variant transaction_perm_var;
-          try {
-             transaction_perm_var = json_from_file_or_string(transaction_perm);
-          } EOS_RETHROW_EXCEPTIONS(transaction_type_exception, "Fail to parse permissions JSON '${data}'", ("data",transaction_perm))
-          fc::variant trx_var;
-          try {
-             trx_var = json_from_file_or_string(proposed_transaction);
-          } EOS_RETHROW_EXCEPTIONS(transaction_type_exception, "Fail to parse transaction JSON '${data}'", ("data",proposed_transaction))
-          transaction proposed_trx = trx_var.as<transaction>();
-
-          auto arg = fc::mutable_variant_object()
-             ("code", proposed_contract)
-             ("action", proposed_action)
-             ("args", trx_var);
-
-          auto result = call(chain_url, json_to_bin_func, arg);
-
-          bytes proposed_trx_serialized = result.get_object()["binargs"].as<bytes>();
-
-          vector<permission_level> reqperm;
-          try {
-             reqperm = requested_perm_var.as<vector<permission_level>>();
-          } EOS_RETHROW_EXCEPTIONS(transaction_type_exception, "Wrong requested permissions format: '${data}'", ("data",requested_perm_var));
-
-          vector<permission_level> trxperm;
-          try {
-             trxperm = transaction_perm_var.as<vector<permission_level>>();
-          } EOS_RETHROW_EXCEPTIONS(transaction_type_exception, "Wrong transaction permissions format: '${data}'", ("data",transaction_perm_var));
-
-          auto accountPermissions = get_account_permissions(tx_permission);
-          // if (accountPermissions.empty()) {
-          //    if (!proposer.empty()) {
-          //       accountPermissions = vector<permission_level>{{proposer, config::active_name}};
-          //    } else {
-          //       EOS_THROW(missing_auth_exception, "Authority is not provided (either by multisig parameter <proposer> or -p)");
-          //    }
-          // }
-          // if (proposer.empty()) {
-            auto proposer = chain::name(accountPermissions.at(0).actor).to_string();
-          // }
-
-          transaction trx;
-
-          trx.expiration = fc::time_point_sec( fc::time_point::now() + fc::hours(proposal_expiration_hours) );
-          trx.ref_block_num = 0;
-          trx.ref_block_prefix = 0;
-          trx.max_net_usage_words = 0;
-          trx.max_cpu_usage_ms = 0;
-          trx.delay_sec = 0;
-          trx.actions = { chain::action(trxperm, chain::name(proposed_contract), chain::name(proposed_action), proposed_trx_serialized) };
-
-          fc::to_variant(trx, trx_var);
-
-          arg = fc::mutable_variant_object()
-             ("code", "eosio.msig")
-             ("action", "propose")
-             ("args", fc::mutable_variant_object()
-              ("proposer", proposer )
-              ("proposal_name", proposal_name)
-              ("requested", requested_perm_var)
-              ("trx", trx_var)
-             );
-          result = call(chain_url, json_to_bin_func, arg);
-
-          send_actions({chain::action{accountPermissions, "eosio.msig", "propose", result.get_object()["binargs"].as<bytes>()}});
-
     }
 
 

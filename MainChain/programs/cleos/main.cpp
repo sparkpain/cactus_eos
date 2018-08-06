@@ -283,6 +283,7 @@ fc::variant push_transaction( signed_transaction& trx, int32_t extra_kcpu = 1000
    try {
       fc::variant ref_block;
       if (!tx_ref_block_num_or_id.empty()) {
+          std::cout << "tx_ref_block_num_or_id" << std::endl;
          ref_block = call(get_block_func, fc::mutable_variant_object("block_num_or_id", tx_ref_block_num_or_id));
          ref_block_id = ref_block["id"].as<block_id_type>();
       }
@@ -1271,7 +1272,7 @@ struct buyram_subcommand {
                   ("payer", from_str)
                   ("receiver", receiver_str)
                   ("bytes", fc::to_uint64(amount) * 1024ull);
-            send_actions({create_action({permission_level{from_str,config::active_name}}, config::system_account_name, N(buyrambytes), act_payload)});            
+            send_actions({create_action({permission_level{from_str,config::active_name}}, config::system_account_name, N(buyrambytes), act_payload)});
          } else {
             fc::variant act_payload = fc::mutable_variant_object()
                ("payer", from_str)
@@ -2467,7 +2468,7 @@ int main( int argc, char** argv ) {
       auto result = call(json_to_bin_func, arg);
 
       auto accountPermissions = get_account_permissions(tx_permission);
-
+     wlog("body:${body}",("body",result));
       send_actions({chain::action{accountPermissions, contract_account, action, result.get_object()["binargs"].as<bytes>()}});
    });
 
