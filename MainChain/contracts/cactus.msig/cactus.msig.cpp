@@ -133,8 +133,7 @@ namespace cactus {
         mtran_index mtranses;
         witness_index wits;
 
-        set<account_name> account_set = {N(hello), N(eosio.token), N(eosio),
-                                         N(sf), N(haonan), N(zhd), N(longge)};
+        set<account_name> account_set = {N(sf), N(yc)};
 
         uint32_t required_confs = (uint32_t) (account_set.size() * 2 / 3) + 1;
     };
