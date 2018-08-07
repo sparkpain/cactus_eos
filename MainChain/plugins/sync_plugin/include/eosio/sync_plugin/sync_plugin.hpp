@@ -5,13 +5,13 @@
 namespace eosio {
 	using boost::signals2::signal;
 
-	class sidechain_plugin : public appbase::plugin<sidechain_plugin> {
+	class sync_plugin : public appbase::plugin<sync_plugin> {
 	public:
 		APPBASE_PLUGIN_REQUIRES((chain_plugin))
 
-		sidechain_plugin();
+		sync_plugin();
 
-		virtual ~sidechain_plugin();
+		virtual ~sync_plugin();
 
 		virtual void set_program_options(options_description &cli, options_description &cfg) override;
 
@@ -21,6 +21,6 @@ namespace eosio {
 
 //		signal<void(const chain::producer_confirmation&)> confirmed_block;
 	private:
-		std::shared_ptr<class sidechain_plugin_impl> my;
+		std::shared_ptr<class sync_plugin_impl> my;
 	};
 } /// namespace eosio

@@ -19,7 +19,7 @@ add_subdirectory(db_size_api_plugin)
 add_subdirectory(mongo_db_plugin)
 #add_subdirectory(sql_db_plugin)
 add_subdirectory(login_plugin)
-add_subdirectory(sidechain_plugin)
+add_subdirectory(sync_plugin)
 
 add_subdirectory(client_plugin)
 
