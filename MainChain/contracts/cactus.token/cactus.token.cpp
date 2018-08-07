@@ -20,18 +20,11 @@ namespace cactus {
 
         //@abi action
         void transfer(account_name from, account_name to, asset quantity) {
-            //print( "Hello, ", name{from} );
             auto quant_after_fee = quantity;
-
-            eosio_assert(is_account(from), "to account does not exist");
-
-
+            eosio_assert(is_account(from), "from account does not exist");
             eosio_assert(quantity.is_valid(), "invalid quantity");
             eosio_assert(quantity.amount > 0, "must withdraw positive quantity");
-            //printf("%s\n", "开始校验from的权限");
-
             require_auth(from);
-            //printf("%s\n", "开始转from的账");
             action(
                     permission_level{from, N(active)},
                     N(eosio.token), N(transfer),
@@ -46,7 +39,6 @@ namespace cactus {
                 a.creation_date = eosio::time_point_sec();
             });
 
-            //printf("%s\n", "执行cactus transfer 结束，请确认到账情况");
         }
 
         //@abi action
@@ -61,8 +53,6 @@ namespace cactus {
             ).send();
 
 
-
-            //printf("%s\n", "执行cactus tmp 结束，请确认到账情况");
         }
 
     private:
