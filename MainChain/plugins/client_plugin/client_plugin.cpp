@@ -29,39 +29,25 @@ namespace eosio {
     using namespace client::http;
     static appbase::abstract_plugin& _client_plugin = app().register_plugin<client_plugin>();
 
-
-
     bool no_verify = false;
     auto   tx_expiration = fc::seconds(30);
     uint8_t  tx_max_cpu_usage = 0;
     uint32_t tx_max_net_usage = 0;
 
     chain::private_key_type client_prikey;
-    string chain_url= "http://127.0.0.1:8888/";
 
     client_plugin::client_plugin(){}
     client_plugin::~client_plugin(){}
 
     void client_plugin::set_program_options(options_description&, options_description& cfg) {
         cfg.add_options()
-              ("client-chain-address", bpo::value<string>()->default_value("http://127.0.0.1:8888/"),
-              "The remote BP's IP and port to listen for incoming http connections; set blank to disable.")
               ("client-private-key", bpo::value<string>()->default_value("5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3"),
                "client plugin's private key")
           ;
     }
 
-
     void client_plugin::plugin_initialize(const variables_map& options){
         try {
-            if( options.count( "client-chain-address" ) && options.at("client-chain-address").as<string>().length
-            ()) {
-               string lipstr_chain = options.at( "client-chain-address" ).as<string>();
-
-               chain_url.assign(lipstr_chain);
-               ilog( "client_plugin configured chain http to ${h}", ("h", chain_url));
-            }
-
             if( options.count("client-private-key") )
              {
                 client_prikey = private_key_type(options.at( "client-private-key" ).as<string>());
@@ -94,25 +80,11 @@ namespace eosio {
 namespace client_apis{
 
      client_cactus::client_cactus(){
-
     }
 
-    template<typename T>
-    fc::variant client_cactus::call( const std::string& url,
-                      const std::string& path,
-                      const T& v ) {
-        static http_context context = create_http_context();
-
-        auto urlpath = parse_url(url) + path;
-        connection_param *cp = new connection_param(context, urlpath, false);
-
-        return do_http_call( *cp, fc::variant(v), false, false );
-
-    }
 
     eosio::chain_apis::read_only::get_info_results client_cactus::get_info( const std::string& url) {
         auto info = call(url, get_info_func, fc::variant()).as<eosio::chain_apis::read_only::get_info_results>();
-        // std::cout << fc::json::to_pretty_string(transaction) << std::endl;
         return info;
     }
 
@@ -127,14 +99,11 @@ namespace client_apis{
         if ( block_num_hint > 0 ) {
             arg = arg("block_num_hint", block_num_hint);
         }
-        auto transaction_info =call(url,get_transaction_func,fc::variant(arg));
-
-        // std::cout << fc::json::to_pretty_string(transaction_info) << std::endl;
+        auto transaction_info =call(url, get_transaction_func, fc::variant(arg));
         return transaction_info;
     }
 
-    void client_cactus::push_action(const std::string& url,string contract_account,string action,string data,
-                                    const vector<string>& tx_permission ){
+    void client_cactus::push_action(const std::string& url, string contract_account, string action, string data, const vector<string>& tx_permission ){
           fc::variant action_args_var;
           if( !data.empty() ) {
               try {
@@ -181,8 +150,7 @@ namespace client_apis{
         return call(url, push_txn_func, packed_transaction(trx, compression));
     }
 
-    void client_cactus::sign_transaction_local(signed_transaction& trx,  const private_key_type& private_key,
-                                               const chain_id_type& chain_id) {
+    void client_cactus::sign_transaction_local(signed_transaction& trx, const private_key_type& private_key, const chain_id_type& chain_id) {
          optional<signature_type> sig = private_key.sign(trx.sig_digest(chain_id, trx.context_free_data));
          if (sig) {
             trx.signatures.push_back(*sig);
@@ -210,6 +178,62 @@ namespace client_apis{
         boost::range::copy(fixedPermissions, back_inserter(accountPermissions));
         return accountPermissions;
     }
+
+    template<typename T>
+    fc::variant client_cactus::call( const std::string& url,
+                      const std::string& path,
+                      const T& v ) {
+        static http_context context = create_http_context();
+
+        auto urlpath = parse_url(url) + path;
+        connection_param *cp = new connection_param(context, urlpath, false);
+
+        return do_http_call( *cp, fc::variant(v), false, false );
+
+    }
+
+//
+   // template<typename T>
+   //  fc::variant client_cactus::call( const std::string& url,
+   //                    const std::string& path,
+   //                    const T& v ) {
+   //      fc::variant re;
+   //      static http_context context = create_http_context();
+   //      auto urlpath = parse_url(url) + path;
+   //      connection_param *cp = new connection_param(context, urlpath, false);
+   //      client_write(*cp,  fc::variant(v), [&](fc::variant result){
+   //       re = result;
+   //      });
+   //      return re;
+   //  }
+
+
+   // void client_cactus::client_write(connection_param& cp, fc::variant postdata, std::function<void(fc::variant&)> callback) {
+   //    write_queue.push_back({cp, postdata, callback});
+   //    if(out_queue.empty())
+   //       do_client_write();
+   // }
+
+
+   // void client_cactus::do_client_write() {
+   //    if(write_queue.empty() || !out_queue.empty())
+   //       return;
+
+   //    while (write_queue.size() > 0) {
+   //       auto& m = write_queue.front();
+   //       out_queue.push_back(m);
+   //       write_queue.pop_front();
+   //    }
+
+   //    while (out_queue.size() > 0){
+   //       auto& outer = out_queue.front();
+   //       auto re = do_http_call( outer.cp, outer.postdata, true, true );
+   //       outer.callback(re);
+   //       out_queue.pop_front();
+   //    }
+
+   // }
+
 
 
 }

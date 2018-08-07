@@ -1,0 +1,6 @@
+[submodule "SideChain/plugins/cactus_eos_plugin"]
+	path = SideChain/plugins/cactus_eos_plugin
+	url = git@github.com:sparkpain/cactus_eos_plugin
+[submodule "MainChain/plugins/cactus_eos_plugin"]
+	path = MainChain/plugins/cactus_eos_plugin
+	url = git@github.com:sparkpain/cactus_eos_plugin

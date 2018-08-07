@@ -19,7 +19,7 @@ add_subdirectory(db_size_api_plugin)
 add_subdirectory(mongo_db_plugin)
 #add_subdirectory(sql_db_plugin)
 add_subdirectory(login_plugin)
-add_subdirectory(confirm_plugin)
+add_subdirectory(cactus_eos_plugin/sync_plugin)
 add_subdirectory(client_plugin)
 
 # Forward variables to top level so packaging picks them up
