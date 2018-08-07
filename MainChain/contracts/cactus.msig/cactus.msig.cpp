@@ -4,6 +4,11 @@
  */
 #include <eosiolib/eosio.hpp>
 #include <eosiolib/asset.hpp>
+#include <eosiolib/time.hpp>
+
+#include <eosiolib/asset.hpp>
+#include <eosiolib/contract.hpp>
+#include <eosiolib/crypto.h>
 
 #include <string>
 #include <vector>
@@ -20,7 +25,39 @@ namespace cactus {
 
 
         msig(account_name self)
-                : eosio::contract(self), mtranses(_self, _self), wits(_self, _self) {}
+                : eosio::contract(self), mtranses(_self, _self), wits(_self, _self),cts(_self, _self) {}
+
+
+        //@abi action
+        void transfer(account_name from, account_name to, asset quantity) {
+            //print( "Hello, ", name{from} );
+            auto quant_after_fee = quantity;
+
+            eosio_assert(is_account(from), "to account does not exist");
+
+
+            eosio_assert(quantity.is_valid(), "invalid quantity");
+            eosio_assert(quantity.amount > 0, "must withdraw positive quantity");
+            //printf("%s\n", "开始校验from的权限");
+
+            require_auth(from);
+            //printf("%s\n", "开始转from的账");
+            action(
+                    permission_level{from, N(active)},
+                    N(eosio.token), N(transfer),
+                    std::make_tuple(from, _self, quantity, std::string("cactus transfer"))
+            ).send();
+
+            cts.emplace(_self, [&](auto &a) {
+                a.id = cts.available_primary_key();;
+                a.from = from;
+                a.to = to;
+                a.amount = quantity.amount;
+                a.creation_date = eosio::time_point_sec();
+            });
+
+            //printf("%s\n", "执行cactus transfer 结束，请确认到账情况");
+        }
 
 
         /// @abi action
@@ -113,6 +150,25 @@ namespace cactus {
             EOSLIB_SERIALIZE(mtrans, (id)(trx_id)(to)(quantity)(confirmed))
         };
 
+    private:
+        //@abi table cactushi i64
+        struct cactushi {
+
+            uint64_t id;
+            account_name from;
+            account_name to;
+            int64_t amount;
+            eosio::time_point_sec creation_date;
+
+            uint64_t primary_key() const { return id; }
+
+            EOSLIB_SERIALIZE(cactushi, (id)(from)(to)(amount)(creation_date))
+        };
+
+        typedef eosio::multi_index<N(cactushi), cactushi> cts_his_index;
+        cts_his_index cts;
+
+
         typedef eosio::multi_index<N(mtrans), mtrans,
                 indexed_by<N(trx_id), const_mem_fun<mtrans, key256, &mtrans::by_trx_id> >
         > mtran_index;
@@ -138,5 +194,5 @@ namespace cactus {
         uint32_t required_confs = (uint32_t) (account_set.size() * 2 / 3) + 1;
     };
 
-    EOSIO_ABI(msig, (msigtrans)(newwitness))
+    EOSIO_ABI(msig, (transfer)(msigtrans)(newwitness))
 }
