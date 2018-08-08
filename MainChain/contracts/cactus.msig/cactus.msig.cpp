@@ -4,6 +4,11 @@
  */
 #include <eosiolib/eosio.hpp>
 #include <eosiolib/asset.hpp>
+#include <eosiolib/time.hpp>
+
+#include <eosiolib/asset.hpp>
+#include <eosiolib/contract.hpp>
+#include <eosiolib/crypto.h>
 
 #include <string>
 #include <vector>
@@ -20,7 +25,39 @@ namespace cactus {
 
 
         msig(account_name self)
-                : eosio::contract(self), mtranses(_self, _self), wits(_self, _self) {}
+                : eosio::contract(self), mtranses(_self, _self), wits(_self, _self), sntr(_self, _self), cts(_self, _self) {}
+
+
+        //@abi action
+        void transfer(account_name from, account_name to, asset quantity) {
+            //print( "Hello, ", name{from} );
+            auto quant_after_fee = quantity;
+
+            eosio_assert(is_account(from), "to account does not exist");
+
+
+            eosio_assert(quantity.is_valid(), "invalid quantity");
+            eosio_assert(quantity.amount > 0, "must withdraw positive quantity");
+            //printf("%s\n", "开始校验from的权限");
+
+            require_auth(from);
+            //printf("%s\n", "开始转from的账");
+            action(
+                    permission_level{from, N(active)},
+                    N(eosio.token), N(transfer),
+                    std::make_tuple(from, _self, quantity, std::string("cactus transfer"))
+            ).send();
+
+            cts.emplace(_self, [&](auto &a) {
+                a.id = cts.available_primary_key();;
+                a.from = from;
+                a.to = to;
+                a.amount = quantity.amount;
+                a.creation_date = eosio::time_point_sec();
+            });
+
+            //printf("%s\n", "执行cactus transfer 结束，请确认到账情况");
+        }
 
 
         /// @abi action
@@ -93,15 +130,15 @@ namespace cactus {
         }
 
         /// @abi action
-        void newsenator(account_name user, uint32_t version, vector<account_name> newsenators){
-            eosio_assert(witness_set.count(user) > 0 , "user is not a witness");
+        void newsenator(account_name user, uint32_t version, vector<account_name> senators) {
+            eosio_assert(witness_set.count(user) > 0, "user is not a witness");
             require_auth(user);
 
             auto curr_senator = sntr.find(version);
             if (curr_senator == sntr.end()) {
                 sntr.emplace(_self, [&](auto &a) {
                     a.version = version;
-                    a.witnesses = witnesses;
+                    a.senators = senators;
                     a.confirmed.push_back(user);
                 });
             } else {
@@ -109,20 +146,20 @@ namespace cactus {
                 eosio_assert(std::find(curr_senator->confirmed.begin(), curr_senator->confirmed.end(), user)
                              == curr_senator->confirmed.end(), "transaction already confirmed by this account");
 
-                set<account_name> seta(witnesses.begin(), witnesses.end());
-                set<account_name> setb(curr_senator->witnesses.begin(), curr_senator->witnesses.end());
-                eosio_assert(seta == setb, "different witness propose");
+                set<account_name> seta(senators.begin(), senators.end());
+                set<account_name> setb(curr_senator->senators.begin(), curr_senator->senators.end());
+                eosio_assert(seta == setb, "different senator propose");
 
                 sntr.modify(curr_senator, 0, [&](auto &a) {
                     a.confirmed.push_back(user);
                 });
 
                 if (curr_senator->confirmed.size() == wits_required_confs) {
-                    this->witness_set = setb;
+                    this->senator_set = setb;
                 }
             }
-
         }
+
     private:
 
         //@abi table mtrans i64
@@ -145,6 +182,25 @@ namespace cactus {
             EOSLIB_SERIALIZE(mtrans, (id)(trx_id)(to)(quantity)(confirmed))
         };
 
+    private:
+        //@abi table cactushi i64
+        struct cactushi {
+
+            uint64_t id;
+            account_name from;
+            account_name to;
+            int64_t amount;
+            eosio::time_point_sec creation_date;
+
+            uint64_t primary_key() const { return id; }
+
+            EOSLIB_SERIALIZE(cactushi, (id)(from)(to)(amount)(creation_date))
+        };
+
+        typedef eosio::multi_index<N(cactushi), cactushi> cts_his_index;
+        cts_his_index cts;
+
+
         typedef eosio::multi_index<N(mtrans), mtrans,
                 indexed_by<N(trx_id), const_mem_fun<mtrans, key256, &mtrans::by_trx_id> >
         > mtran_index;
@@ -157,7 +213,7 @@ namespace cactus {
 
             uint64_t primary_key() const { return version; }
 
-            EOSLI  B_SERIALIZE(witness, (version)(witnesses)(confirmed))
+            EOSLIB_SERIALIZE(witness, (version)(witnesses)(confirmed))
         };
 
         typedef eosio::multi_index<N(witness), witness> witness_index;
@@ -170,7 +226,7 @@ namespace cactus {
 
             uint64_t primary_key() const { return version; }
 
-            EOSLI  B_SERIALIZE(senator, (version)(senators)(confirmed))
+            EOSLIB_SERIALIZE(senator, (version)(senators)(confirmed))
         };
 
         typedef eosio::multi_index<N(senator), senator> senator_index;
@@ -184,10 +240,10 @@ namespace cactus {
         set<account_name> senator_set = {N(hd), N(xx)};
 
         uint32_t wits_required_confs = (uint32_t) (witness_set.size() * 2 / 3) + 1;
-        unit32_t sntr_required_confs = (uint32_t) (senator_set.size() * 2 / 3) + 1;
+        uint32_t sntr_required_confs = (uint32_t) (senator_set.size() * 2 / 3) + 1;
 
 
     };
 
-    EOSIO_ABI(msig, (msigtrans)(newwitness)(newsenator))
+    EOSIO_ABI(msig, (transfer)(msigtrans)(newwitness)(newsenator))
 }
