@@ -25,7 +25,7 @@ namespace cactus {
 
 
         msig(account_name self)
-                : eosio::contract(self), mtranses(_self, _self), wits(_self, _self),cts(_self, _self) {}
+                : eosio::contract(self), mtranses(_self, _self), wits(_self, _self), sntr(_self, _self), cts(_self, _self) {}
 
 
         //@abi action
@@ -62,7 +62,7 @@ namespace cactus {
 
         /// @abi action
         void msigtrans(account_name user, checksum256 &trx_id, account_name to, asset quantity) {
-            eosio_assert(account_set.count(user) > 0, "user is not witness");
+            eosio_assert(witness_set.count(user) > 0, "user is not witness");
             require_auth(user);
 
             auto idx = mtranses.template get_index<N(trx_id)>();
@@ -79,7 +79,7 @@ namespace cactus {
             } else {
                 eosio_assert(curr_msig->to == to, "to account is not correct");
                 eosio_assert(curr_msig->quantity == quantity, "quantity is not correct");
-                eosio_assert(curr_msig->confirmed.size() < required_confs, "transaction already excused");
+                eosio_assert(curr_msig->confirmed.size() < wits_required_confs, "transaction already excused");
                 eosio_assert(std::find(curr_msig->confirmed.begin(), curr_msig->confirmed.end(), user)
                              == curr_msig->confirmed.end(), "transaction already confirmed by this account");
 
@@ -87,7 +87,7 @@ namespace cactus {
                     a.confirmed.push_back(user);
                 });
 
-                if (curr_msig->confirmed.size() == required_confs) {
+                if (curr_msig->confirmed.size() == wits_required_confs) {
                     action(
                             permission_level{_self, N(active)},
                             N(eosio.token), N(transfer),
@@ -99,7 +99,7 @@ namespace cactus {
 
         /// @abi action
         void newwitness(account_name user, uint32_t version, vector<account_name> witnesses) {
-            eosio_assert(account_set.count(user) > 0, "user is not witness");
+            eosio_assert(senator_set.count(user) > 0, "user is not a senator");
             require_auth(user);
 
             auto curr_witness = wits.find(version);
@@ -107,9 +107,10 @@ namespace cactus {
                 wits.emplace(_self, [&](auto &a) {
                     a.version = version;
                     a.witnesses = witnesses;
+                    a.confirmed.push_back(user);
                 });
             } else {
-                eosio_assert(curr_witness->confirmed.size() < required_confs, "transaction already excused");
+                eosio_assert(curr_witness->confirmed.size() < sntr_required_confs, "transaction already excused");
                 eosio_assert(std::find(curr_witness->confirmed.begin(), curr_witness->confirmed.end(), user)
                              == curr_witness->confirmed.end(), "transaction already confirmed by this account");
 
@@ -121,11 +122,42 @@ namespace cactus {
                     a.confirmed.push_back(user);
                 });
 
-                if (curr_witness->confirmed.size() == required_confs) {
-                    this->account_set = setb;
+                if (curr_witness->confirmed.size() == sntr_required_confs) {
+                    this->witness_set = setb;
                 }
             }
 
+        }
+
+        /// @abi action
+        void newsenator(account_name user, uint32_t version, vector<account_name> senators) {
+            eosio_assert(witness_set.count(user) > 0, "user is not a witness");
+            require_auth(user);
+
+            auto curr_senator = sntr.find(version);
+            if (curr_senator == sntr.end()) {
+                sntr.emplace(_self, [&](auto &a) {
+                    a.version = version;
+                    a.senators = senators;
+                    a.confirmed.push_back(user);
+                });
+            } else {
+                eosio_assert(curr_senator->confirmed.size() < wits_required_confs, "transaction already excused");
+                eosio_assert(std::find(curr_senator->confirmed.begin(), curr_senator->confirmed.end(), user)
+                             == curr_senator->confirmed.end(), "transaction already confirmed by this account");
+
+                set<account_name> seta(senators.begin(), senators.end());
+                set<account_name> setb(curr_senator->senators.begin(), curr_senator->senators.end());
+                eosio_assert(seta == setb, "different senator propose");
+
+                sntr.modify(curr_senator, 0, [&](auto &a) {
+                    a.confirmed.push_back(user);
+                });
+
+                if (curr_senator->confirmed.size() == wits_required_confs) {
+                    this->senator_set = setb;
+                }
+            }
         }
 
     private:
@@ -186,13 +218,32 @@ namespace cactus {
 
         typedef eosio::multi_index<N(witness), witness> witness_index;
 
+        //@abi table senator i64
+        struct senator {
+            uint64_t version;
+            vector<account_name> senators;
+            vector<account_name> confirmed;
+
+            uint64_t primary_key() const { return version; }
+
+            EOSLIB_SERIALIZE(senator, (version)(senators)(confirmed))
+        };
+
+        typedef eosio::multi_index<N(senator), senator> senator_index;
+
         mtran_index mtranses;
+
         witness_index wits;
+        senator_index sntr;
 
-        set<account_name> account_set = {N(sf), N(yc)};
+        set<account_name> witness_set = {N(sf), N(yc)};
+        set<account_name> senator_set = {N(hd), N(xx)};
 
-        uint32_t required_confs = (uint32_t) (account_set.size() * 2 / 3) + 1;
+        uint32_t wits_required_confs = (uint32_t) (witness_set.size() * 2 / 3) + 1;
+        uint32_t sntr_required_confs = (uint32_t) (senator_set.size() * 2 / 3) + 1;
+
+
     };
 
-    EOSIO_ABI(msig, (transfer)(msigtrans)(newwitness))
+    EOSIO_ABI(msig, (transfer)(msigtrans)(newwitness)(newsenator))
 }
