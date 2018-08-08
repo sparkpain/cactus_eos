@@ -93,7 +93,7 @@ namespace cactus {
         }
 
         /// @abi action
-        void newsenator(account_name user, uint32_t version, vector<account)name> newsenators){
+        void newsenator(account_name user, uint32_t version, vector<account_name> newsenators){
             eosio_assert(witness_set.count(user) > 0 , "user is not a witness");
             require_auth(user);
 
