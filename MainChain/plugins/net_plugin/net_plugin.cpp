@@ -2866,7 +2866,7 @@ namespace eosio {
          }
          catch( const unknown_block_exception &ex) {
 //TODO-待解决: read-mode为IRREVERSIBLE时的同步消息报错问题
-//           hello.head_num = 0;
+           hello.head_num = 0;
          }
       }
    }
