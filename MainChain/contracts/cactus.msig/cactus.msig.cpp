@@ -49,7 +49,7 @@ namespace cactus {
             ).send();
 
             cts.emplace(_self, [&](auto &a) {
-                a.id = cts.available_primary_key();;
+                a.id = cts.available_primary_key();
                 a.from = from;
                 a.to = to;
                 a.amount = quantity.amount;
@@ -163,6 +163,28 @@ namespace cactus {
             }
         }
 
+
+        /// @abi action
+        void upwitness(account_name user) {
+            eosio_assert(is_account(user), "user account does not exist");
+            require_auth(user);
+            int count = wits.available_primary_key();
+
+            //printf("%d\n", count);
+            if (count%2==0) {
+                wits.emplace(_self, [&](auto &a) {
+                    a.version = count;
+                    a.witnesses = witnesses1;
+                });
+            } else {
+                wits.emplace(_self, [&](auto &a) {
+                    a.version = count;
+                    a.witnesses = witnesses2;
+                });
+            }
+
+        }
+
     private:
 
         //@abi table mtrans i64
@@ -246,8 +268,10 @@ namespace cactus {
         uint32_t wits_required_confs = (uint32_t) (witness_set.size() * 2 / 3) + 1;
         uint32_t sntr_required_confs = (uint32_t) (senator_set.size() * 2 / 3) + 1;
 
+        vector<account_name> witnesses1 = {N(a),N(b),N(c),N(d),N(e),N(f),N(g)};
+        vector<account_name> witnesses2 = {N(t),N(u),N(v),N(w),N(x),N(y),N(z)};
 
     };
 
-    EOSIO_ABI(msig, (transfer)(msigtrans)(newwitness)(newsenator))
+    EOSIO_ABI(msig, (transfer)(msigtrans)(newwitness)(newsenator)(upwitness))
 }
