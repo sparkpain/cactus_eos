@@ -849,6 +849,10 @@ struct controller_impl {
                auto& pt = receipt.trx.get<packed_transaction>();
                auto mtrx = std::make_shared<transaction_metadata>(pt);
                trace = push_transaction( mtrx, fc::time_point::maximum(), false, receipt.cpu_usage_us);
+               if( !trace->except ) {
+                  // CALL sync_plugin
+                  emit(self.sync_block_transaction, mtrx);
+               }
             } else if( receipt.trx.contains<transaction_id_type>() ) {
                trace = push_scheduled_transaction( receipt.trx.get<transaction_id_type>(), fc::time_point::maximum(), receipt.cpu_usage_us );
             } else {
