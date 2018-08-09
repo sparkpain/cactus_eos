@@ -64,7 +64,7 @@ namespace cactus {
         void msigtrans(account_name user, checksum256 &trx_id, account_name to, asset quantity) {
             eosio_assert(witness_set.count(user) > 0, "user is not witness");
             require_auth(user);
-
+            time_t now=time(0);
             auto idx = mtranses.template get_index<N(trx_id)>();
             auto curr_msig = idx.find(mtrans::get_trx_id(trx_id));
 
@@ -74,9 +74,11 @@ namespace cactus {
                     a.trx_id = trx_id;
                     a.to = to;
                     a.quantity = quantity;
+                    a.timestamp = (uint64_t)now;
                     a.confirmed.push_back(user);
                 });
             } else {
+                eosio_assert(now - curr_msig->timestamp < 100, "letency is too long");
                 eosio_assert(curr_msig->to == to, "to account is not correct");
                 eosio_assert(curr_msig->quantity == quantity, "quantity is not correct");
                 eosio_assert(curr_msig->confirmed.size() < wits_required_confs, "transaction already excused");
@@ -84,6 +86,7 @@ namespace cactus {
                              == curr_msig->confirmed.end(), "transaction already confirmed by this account");
 
                 idx.modify(curr_msig, 0, [&](auto &a) {
+                    a.timestamp = (uint64_t)now;
                     a.confirmed.push_back(user);
                 });
 
@@ -168,6 +171,7 @@ namespace cactus {
             checksum256 trx_id;
             account_name to;
             asset quantity;
+            uint64_t timestamp;
             vector<account_name> confirmed;
 
             uint64_t primary_key() const { return id; }
