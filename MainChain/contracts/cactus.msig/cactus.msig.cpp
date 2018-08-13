@@ -25,7 +25,24 @@ namespace cactus {
 
 
         msig(account_name self)
-                : eosio::contract(self), mtranses(_self, _self), wits(_self, _self), sntr(_self, _self), cts(_self, _self) {}
+                : eosio::contract(self), mtranses(_self, _self), wits(_self, _self), sntr(_self, _self), cts(_self, _self), chars(_self, _self),
+                  witness_set(), senator_set(), wits_required_confs(), sntr_required_confs(){
+            auto idx = chars.find( false );
+            if (idx == chars.end()){
+                chars.emplace(_self, [&](auto &a){
+                   a.pending     = false;
+                   a.witness_set = {N(a),N(b),N(c),N(d),N(e),N(f),N(g)};
+                   a.senator_set = {N(t),N(u),N(v),N(w),N(x),N(y),N(z)};
+                });
+            }
+
+            set<account_name> seta(idx->witness_set.begin(), idx->witness_set.end());
+            set<account_name> setb(idx->senator_set.begin(), idx->senator_set.end());
+            this->witness_set = seta;
+            this->senator_set = setb;
+            wits_required_confs = (uint32_t) (witness_set.size() * 2 / 3) + 1;
+            sntr_required_confs = (uint32_t) (senator_set.size() * 2 / 3) + 1;
+        }
 
 
         //@abi action
@@ -126,7 +143,11 @@ namespace cactus {
                 });
 
                 if (curr_witness->confirmed.size() == sntr_required_confs) {
-                    this->witness_set = setb;
+                    auto idx = chars.find( false );
+                    eosio_assert(idx!=chars.end(), "error init");
+                    chars.modify(idx, 0, [&](auto &a){
+                        a.witness_set = witnesses;
+                    });
                 }
             }
 
@@ -158,7 +179,11 @@ namespace cactus {
                 });
 
                 if (curr_senator->confirmed.size() == wits_required_confs) {
-                    this->senator_set = setb;
+                    auto idx = chars.find( false );
+                    eosio_assert(idx!=chars.end(), "error init");
+                    chars.modify(idx, 0, [&](auto &a){
+                        a.senator_set = senators;
+                    });
                 }
             }
         }
@@ -257,19 +282,37 @@ namespace cactus {
 
         typedef eosio::multi_index<N(senator), senator> senator_index;
 
+        //@abi table character
+        struct character {
+            uint64_t pending;
+            vector<account_name> witness_set;
+            vector<account_name> senator_set;
+
+            uint64_t primary_key() const { return pending; }
+
+            EOSLIB_SERIALIZE(character, (pending)(witness_set)(senator_set))
+        };
+
+        typedef eosio::multi_index<N(character), character> character_index;
+
         mtran_index mtranses;
 
         witness_index wits;
         senator_index sntr;
 
-        set<account_name> witness_set = {N(shengfeng), N(yuanchao)};
-        set<account_name> senator_set = {N(hd), N(xx)};
+        set<account_name> witness_set;
+        set<account_name> senator_set;
 
-        uint32_t wits_required_confs = (uint32_t) (witness_set.size() * 2 / 3) + 1;
-        uint32_t sntr_required_confs = (uint32_t) (senator_set.size() * 2 / 3) + 1;
+        uint32_t wits_required_confs;
+        uint32_t sntr_required_confs;
+
+
+        character_index chars;
 
         vector<account_name> witnesses1 = {N(a),N(b),N(c),N(d),N(e),N(f),N(g)};
         vector<account_name> witnesses2 = {N(t),N(u),N(v),N(w),N(x),N(y),N(z)};
+
+
 
     };
 
