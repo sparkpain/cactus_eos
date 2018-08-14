@@ -78,7 +78,7 @@ namespace cactus {
 
 
         /// @abi action
-        void msigtrans(account_name user, checksum256 &trx_id, account_name to, asset quantity) {
+        void msigtrans(account_name user, checksum256 &trx_id, account_name from, account_name to, asset quantity) {
             eosio_assert(witness_set.count(user) > 0, "user is not witness");
             require_auth(user);
             uint32_t now = (uint32_t)(current_time()  / 1000000);
@@ -89,6 +89,7 @@ namespace cactus {
                 mtranses.emplace(_self, [&](auto &a) {
                     a.id = mtranses.available_primary_key();
                     a.trx_id = trx_id;
+                    a.from = from;
                     a.to = to;
                     a.quantity = quantity;
                     a.timestamp = now;
@@ -96,7 +97,7 @@ namespace cactus {
                 });
             } else {
                 eosio_assert((uint64_t)(now - curr_msig->timestamp) < 100, "letency is too long");
-                eosio_assert(curr_msig->to == to, "to account is not correct");
+                eosio_assert(curr_msig->from == from && curr_msig->to == to, "transfer account is not correct");
                 eosio_assert(curr_msig->quantity == quantity, "quantity is not correct");
                 eosio_assert(curr_msig->confirmed.size() < wits_required_confs, "transaction already excused");
                 eosio_assert(std::find(curr_msig->confirmed.begin(), curr_msig->confirmed.end(), user)
@@ -216,6 +217,7 @@ namespace cactus {
         struct mtrans {
             uint64_t id;
             checksum256 trx_id;
+            account_name from;
             account_name to;
             asset quantity;
             uint32_t timestamp;
@@ -230,7 +232,7 @@ namespace cactus {
                 return key256::make_from_word_sequence<uint64_t>(p64[0], p64[1], p64[2], p64[3]);
             }
 
-            EOSLIB_SERIALIZE(mtrans, (id)(trx_id)(to)(quantity)(timestamp)(confirmed))
+            EOSLIB_SERIALIZE(mtrans, (id)(trx_id)(from)(to)(quantity)(timestamp)(confirmed))
         };
 
     private:
