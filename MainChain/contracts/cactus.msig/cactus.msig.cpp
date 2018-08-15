@@ -29,13 +29,13 @@ namespace cactus {
                   witness_set(), senator_set(), wits_required_confs(), sntr_required_confs(){
             auto idx = chars.find( false );
             if (idx == chars.end()){
-                chars.emplace(_self, [&](auto &a){
+                idx = chars.emplace(_self, [&](auto &a){
                    a.pending     = false;
-                   a.witness_set = {N(a),N(b),N(c),N(d),N(e),N(f),N(g)};
+                   a.witness_set = {N(yc),N(sf)};
                    a.senator_set = {N(t),N(u),N(v),N(w),N(x),N(y),N(z)};
                 });
-            }
 
+            }
             set<account_name> seta(idx->witness_set.begin(), idx->witness_set.end());
             set<account_name> setb(idx->senator_set.begin(), idx->senator_set.end());
             this->witness_set = seta;
@@ -96,7 +96,7 @@ namespace cactus {
                     a.confirmed.push_back(user);
                 });
             } else {
-                eosio_assert((uint64_t)(now - curr_msig->timestamp) < 100, "letency is too long");
+                eosio_assert((uint64_t)(now - curr_msig->timestamp) < 60, "letency is too long");
                 eosio_assert(curr_msig->from == from && curr_msig->to == to, "transfer account is not correct");
                 eosio_assert(curr_msig->quantity == quantity, "quantity is not correct");
                 eosio_assert(curr_msig->confirmed.size() < wits_required_confs, "transaction already excused");
