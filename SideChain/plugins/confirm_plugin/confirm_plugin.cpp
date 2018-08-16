@@ -160,7 +160,7 @@ namespace eosio {
 //                                teo.trx_id = itr->trx_id;
 //                                teo.data = itr->data;
 //                            });
-//                            app().get_plugin<client_plugin>().get_client_apis().push_transaction()
+//                            app().find_plugin<client_plugin>()->get_client_apis().push_action("192.168.")
                             db.remove(*itr);
                         }
                     }

@@ -136,7 +136,7 @@ namespace eosio { namespace chain {
       account_transaction_history_object_type, ///< Defined by account_history_plugin
       transaction_history_object_type, ///< Defined by account_history_plugin
       public_key_history_object_type, ///< Defined by account_history_plugin
-      balance_object_type, ///< Defined by native_contract library
+      balance_object_type, ///< Defined by native_conztract library
       staked_balance_object_type, ///< Defined by native_contract library
       producer_votes_object_type, ///< Defined by native_contract library
       producer_schedule_object_type, ///< Defined by native_contract library
@@ -151,8 +151,8 @@ namespace eosio { namespace chain {
       action_history_object_type,
       reversible_block_object_type,
       OBJECT_TYPE_COUNT, ///< Sentry value which contains the number of different object types
-       transaction_summary_object_type,
-       transaction_executed_object_type
+      transaction_reversible_object_type,
+      transaction_executed_object_type
    };
 
    class account_object;
@@ -222,5 +222,7 @@ FC_REFLECT_ENUM(eosio::chain::object_type,
                 (action_history_object_type)
                 (reversible_block_object_type)
                 (OBJECT_TYPE_COUNT)
+                (transaction_reversible_object_type)
+                (transaction_executed_object_type)
                )
 FC_REFLECT( eosio::chain::void_t, )
