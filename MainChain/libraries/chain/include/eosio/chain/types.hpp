@@ -152,7 +152,8 @@ namespace eosio { namespace chain {
       reversible_block_object_type,
       OBJECT_TYPE_COUNT, ///< Sentry value which contains the number of different object types
       transaction_reversible_object_type,
-	  transaction_executed_object_type
+	   transaction_executed_object_type,
+      transaction_success_object_type
    };
 
    class account_object;
@@ -224,5 +225,6 @@ FC_REFLECT_ENUM(eosio::chain::object_type,
                 (OBJECT_TYPE_COUNT)
                 (transaction_reversible_object_type)
                 (transaction_executed_object_type)
+                (transaction_success_object_type)
                )
 FC_REFLECT( eosio::chain::void_t, )
